@@ -1,13 +1,17 @@
 package com.example.tommy.alcodeepapp;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.os.Bundle;
-import android.os.Message;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.wearable.activity.WearableActivity;
 import android.support.wearable.view.BoxInsetLayout;
 import android.view.View;
@@ -15,16 +19,19 @@ import android.widget.TextView;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.wearable.CapabilityApi;
 import com.google.android.gms.wearable.MessageApi;
 import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Wearable;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
 public class MainActivity extends WearableActivity implements
-        SensorEventListener,
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
         MessageApi.MessageListener{
@@ -52,6 +59,11 @@ public class MainActivity extends WearableActivity implements
         mLogoView = (TextView) findViewById(R.id.text);
         mStatusView = (TextView) findViewById(R.id.status);
         mClockView = (TextView) findViewById(R.id.clock);
+
+        // Register the local broadcast receiver
+        IntentFilter messageFilter = new IntentFilter(Intent.ACTION_SENDTO);
+        MessageReceiver messageReceiver = new MessageReceiver();
+        LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, messageFilter);
 
         //create new GoogleApiClient
         mGoogleApiClient = new GoogleApiClient.Builder(this)
@@ -99,16 +111,6 @@ public class MainActivity extends WearableActivity implements
     }
 
     @Override
-    public void onSensorChanged(SensorEvent sensorEvent) {
-
-    }
-
-    @Override
-    public void onAccuracyChanged(Sensor sensor, int i) {
-
-    }
-
-    @Override
     public void onConnected(@Nullable Bundle bundle) {
 
     }
@@ -131,6 +133,7 @@ public class MainActivity extends WearableActivity implements
             switch(data) {
                 case "start":
                     mStatusView.setText("Recording...");
+                    startService(new Intent(this, WatchSensorService.class));
                     break;
                 case "stop":
                     mStatusView.setText("Idle...");
@@ -138,6 +141,78 @@ public class MainActivity extends WearableActivity implements
                 default:
                     break;
             }
+        }
+    }
+
+    public void sendDataToPhone(Bundle data) {
+        String MOBILE_DATA_PATH = "/mobile_data";
+
+        new SendToPhone(MOBILE_DATA_PATH, data).start();
+    }
+
+
+    public class MessageReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Bundle data = intent.getBundleExtra("datamap");
+
+            if (data.getString("type").equals("status")) {
+//                final TextView tv = (TextView) findViewById(R.id.statustext);
+//                tv.setText(data.getString("content"));
+            } else if (data.getString("type").equals("data")) {
+                sendDataToPhone(data);
+            }
+
+        }
+    }
+
+    /**
+     * Convert a bundle to JSON. Messsage API only takes strings, may be easier
+     * to convert JSON to string and back than converting bundle to string and back
+     * @param bundle
+     * @return
+     */
+    public JSONObject bundleToJSON(Bundle bundle) {
+        JSONObject json = new JSONObject();
+
+        for(String key : bundle.keySet()) {
+            try {
+                json.put(key, JSONObject.wrap(bundle.get(key)));
+
+            } catch(JSONException e) {
+                //handle exception
+            }
+        }
+
+        return json;
+    }
+
+
+    class SendToPhone extends Thread {
+        String path;
+        Bundle data;
+
+        // Constructor for sending data objects to the data layer
+        SendToPhone(String p, Bundle data) {
+            path = p;
+            this.data = data;
+        }
+
+        public void run() {
+
+            String DATA_RECEIVER_CAPABILITY = "data_receiver";
+
+            //retrieve node that can receive data(phone)
+            CapabilityApi.GetCapabilityResult result =
+                    Wearable.CapabilityApi.getCapability(
+                            mGoogleApiClient, DATA_RECEIVER_CAPABILITY,
+                            CapabilityApi.FILTER_REACHABLE).await();
+            String nodeId = result.getCapability().getNodes().iterator().next().getId();
+
+            //send data to phone
+            JSONObject dataJson = bundleToJSON(data);
+            Wearable.MessageApi.sendMessage(mGoogleApiClient, nodeId,
+                    path, dataJson.toString().getBytes());
         }
     }
 }

@@ -31,4 +31,5 @@ dependencies {
     compile 'com.jjoe64:graphview:4.2.1'
     compile 'com.nhaarman.supertooltips:library:3.0.+'
     testCompile 'junit:junit:4.12'
+    compile files('libs/weka.jar')
 }
