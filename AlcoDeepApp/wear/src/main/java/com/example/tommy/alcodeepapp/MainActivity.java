@@ -14,6 +14,7 @@ import android.support.annotation.Nullable;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.wearable.activity.WearableActivity;
 import android.support.wearable.view.BoxInsetLayout;
+import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 
@@ -77,6 +78,21 @@ public class MainActivity extends WearableActivity implements
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        mGoogleApiClient.connect();
+    }
+
+    @Override
+    protected void onStop() {
+        if (null != mGoogleApiClient && mGoogleApiClient.isConnected()) {
+            mGoogleApiClient.disconnect();
+        }
+        Log.wtf("app stopped", "app stopped");
+        super.onStop();
+    }
+
+    @Override
     public void onEnterAmbient(Bundle ambientDetails) {
         super.onEnterAmbient(ambientDetails);
         updateDisplay();
@@ -112,7 +128,7 @@ public class MainActivity extends WearableActivity implements
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
-
+        Wearable.MessageApi.addListener( mGoogleApiClient, this );
     }
 
     @Override
@@ -127,9 +143,10 @@ public class MainActivity extends WearableActivity implements
 
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
+        Log.wtf("MQP", "we got a message");
         if(messageEvent.getPath().equals(DATA_RECEIVER_PATH)) {
             String data = new String(messageEvent.getData());
-            System.out.println(data);
+            Log.wtf("MQP", data);
             switch(data) {
                 case "start":
                     mStatusView.setText("Recording...");
@@ -137,6 +154,7 @@ public class MainActivity extends WearableActivity implements
                     break;
                 case "stop":
                     mStatusView.setText("Idle...");
+                    stopService(new Intent(this, WatchSensorService.class));
                     break;
                 default:
                     break;
@@ -155,11 +173,12 @@ public class MainActivity extends WearableActivity implements
         @Override
         public void onReceive(Context context, Intent intent) {
             Bundle data = intent.getBundleExtra("datamap");
-
+            Log.wtf("MQP", "we got message");
             if (data.getString("type").equals("status")) {
 //                final TextView tv = (TextView) findViewById(R.id.statustext);
 //                tv.setText(data.getString("content"));
             } else if (data.getString("type").equals("data")) {
+                Log.wtf("MQP", "Sending data to phone");
                 sendDataToPhone(data);
             }
 

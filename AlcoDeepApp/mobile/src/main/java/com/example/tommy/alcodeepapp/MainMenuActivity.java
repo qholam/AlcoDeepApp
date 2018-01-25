@@ -1,9 +1,11 @@
 package com.example.tommy.alcodeepapp;
 
+import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -12,6 +14,8 @@ import android.net.Uri;
 import android.os.Environment;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -43,6 +47,9 @@ public class MainMenuActivity extends AppCompatActivity implements
         GoogleApiClient.OnConnectionFailedListener{
 
     private Intent serviceIntent;
+
+    int hasPermission = 0;
+
 
     /*variables for use when using MessageAPI*/
     private GoogleApiClient mGoogleApiClient;
@@ -83,6 +90,14 @@ public class MainMenuActivity extends AppCompatActivity implements
                 .addOnConnectionFailedListener(this)
                 .build();
 
+        int permissionCheck = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+
+        if (permissionCheck != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE},
+                    hasPermission);
+        }
+
         //start service to listen to messages from the watch
         serviceIntent = new Intent(this, MobileListenerService.class);
         startService(serviceIntent);
@@ -101,6 +116,7 @@ public class MainMenuActivity extends AppCompatActivity implements
         mDataset.setClassIndex(mDataset.numAttributes() - 1);
 
         disableStopButton();
+        serviceStarted = false;
     }
 
     @Override
@@ -118,6 +134,21 @@ public class MainMenuActivity extends AppCompatActivity implements
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mGoogleApiClient.connect();
+    }
+
+    @Override
+    protected void onStop() {
+        if (null != mGoogleApiClient && mGoogleApiClient.isConnected()) {
+            mGoogleApiClient.disconnect();
+        }
+        Log.wtf("app stopped", "app stopped");
+        super.onStop();
     }
 
     @Override
@@ -144,10 +175,13 @@ public class MainMenuActivity extends AppCompatActivity implements
         disableStartButton();
         enableStopButton();
 
-        //update status
-        TextView status = (TextView) findViewById(R.id.status);
-        status.setText("Recording...");
-        serviceStarted = true;
+        //make sure Instance holding watch data is initially empty
+        mDataset.delete();
+        mDataset = new Instances("mqp_features", attributes, 10000);
+        mDataset.setClassIndex(mDataset.numAttributes() - 1);
+
+        //start main activity on watch
+        startWatch();
 
         //open file for writing phone data to
         csvOutput = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), System.currentTimeMillis() + "phone.csv");
@@ -157,13 +191,10 @@ public class MainMenuActivity extends AppCompatActivity implements
             e.printStackTrace();
         }
 
-        //make sure Instance holding watch data is initially empty
-        mDataset.delete();
-        mDataset = new Instances("mqp_features", attributes, 10000);
-        mDataset.setClassIndex(mDataset.numAttributes() - 1);
-
-        //start main activity on watch
-        startWatch();
+        //update status
+        TextView status = (TextView) findViewById(R.id.status);
+        status.setText("Recording...");
+        serviceStarted = true;
     }
 
     public void pressStopButton(View v) {
@@ -270,6 +301,7 @@ public class MainMenuActivity extends AppCompatActivity implements
                     long t = sensorEvent.timestamp;
                     writer.write("gyr,"+t+','+mgx+','+mgy+','+mgz+','+'\n');
 
+
                     Log.wtf("PhoneGyro", mgx + " " + mgy + " " + mgz);
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -307,15 +339,22 @@ public class MainMenuActivity extends AppCompatActivity implements
             this.data = data;
         }
 
+        @Override
         public void run() {
+            String DATA_RECEIVER_CAPABILITY = "data_receiver";
+
             //retrieve watch node
             CapabilityApi.GetCapabilityResult result =
                     Wearable.CapabilityApi.getCapability(
                             mGoogleApiClient,  DATA_RECEIVER_CAPABILITY,
                             CapabilityApi.FILTER_REACHABLE).await();
 
-            if(result.getCapability().getNodes().isEmpty())
+            if(result.getCapability().getNodes().isEmpty()) {
+                Log.wtf("MQP", "no watch found");
                 return;
+            }
+
+            Log.wtf("MQP", "sending command to watch");
 
             String watchNodeId = result.getCapability().getNodes().iterator().next().getId();
 
@@ -361,6 +400,7 @@ public class MainMenuActivity extends AppCompatActivity implements
                         inst.setValue(mDataset.attribute("wgx"), wgx[i]);
                         inst.setValue(mDataset.attribute("wgy"), wgy[i]);
                         inst.setValue(mDataset.attribute("wgz"), wgz[i]);
+                        Log.wtf("WATCH", Float.toString(wax[i]));
                         mDataset.add(inst);
                     }
                 }
