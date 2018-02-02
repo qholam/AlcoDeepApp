@@ -29,16 +29,25 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.wearable.CapabilityApi;
 import com.google.android.gms.wearable.Wearable;
 
+import org.apache.commons.io.FileUtils;
+
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 import weka.core.Attribute;
 import weka.core.Instances;
 import weka.core.DenseInstance;
 import weka.core.Instance;
-import weka.core.converters.ArffSaver;
 import weka.core.converters.CSVSaver;
 
 public class MainMenuActivity extends AppCompatActivity implements
@@ -65,6 +74,7 @@ public class MainMenuActivity extends AppCompatActivity implements
     /*variables for writing phone and watch data to file*/
     private FileWriter writer;
     private File csvOutput;
+    private File watchOutputFile;
     ArrayList<Attribute> attributes;
     Instances mDataset;
 
@@ -217,6 +227,9 @@ public class MainMenuActivity extends AppCompatActivity implements
         //save data from watch to csv file
         saveWatchToFile();
 
+        //send phone and watch csv's to server
+        sendFilesToServer();
+
         //go to result activity
         Intent intent = new Intent(this, ResultActivity.class);
         startActivity(intent);
@@ -254,21 +267,52 @@ public class MainMenuActivity extends AppCompatActivity implements
         new SendToWatch(DATA_RECEIVER_PATH, str).start();
     }
 
+    private void sendFilesToServer() {
+        Uri file1Uri = Uri.parse(csvOutput.getAbsolutePath()); // get uri to phone csv
+        Uri file2Uri = Uri.parse(watchOutputFile.getAbsolutePath()); // get uri to watch csv
+
+        // create upload service client
+        FileUploadService service =
+                ServiceGenerator.createService(FileUploadService.class);
+
+        // create part for file
+        MultipartBody.Part body1 = prepareFilePart("phonecsv", file1Uri);
+        MultipartBody.Part body2 = prepareFilePart("watchcsv", file2Uri);
+
+        // add another part within the multipart request
+        RequestBody description = createPartFromString("contains watch and phone csv files");
+
+        // finally, execute the request
+        Call<ResponseBody> call = service.uploadMultipleFiles(description, body1, body2);
+        call.enqueue(new Callback<ResponseBody>() {
+            @Override
+            public void onResponse(Call<ResponseBody> call,
+                                   Response<ResponseBody> response) {
+                Log.v("Upload", "success");
+            }
+
+            @Override
+            public void onFailure(Call<ResponseBody> call, Throwable t) {
+                Log.e("Upload error:", t.getMessage());
+            }
+        });
+    }
+
     protected void saveWatchToFile() {
-        File outputFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), System.currentTimeMillis() + "watch.csv");
+        watchOutputFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), System.currentTimeMillis() + "watch.csv");
         if (mDataset != null) {
             CSVSaver saver = new CSVSaver();
             saver.setInstances(mDataset);
 
 
-            Log.wtf("MQP", "FILE " + outputFile.getAbsolutePath());
+            Log.wtf("MQP", "FILE " + watchOutputFile.getAbsolutePath());
             try {
-                saver.setFile(outputFile);
+                saver.setFile(watchOutputFile);
                 saver.writeBatch();
 
                 Intent intent =
                         new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-                intent.setData(Uri.fromFile(outputFile));
+                intent.setData(Uri.fromFile(watchOutputFile));
                 sendBroadcast(intent);
             } catch (IOException e) {
                 Log.wtf("MQP", "error saving");
@@ -407,5 +451,34 @@ public class MainMenuActivity extends AppCompatActivity implements
                 }
             }
         }
+    }
+
+    @NonNull
+    private RequestBody createPartFromString(String descriptionString) {
+        return RequestBody.create(
+                okhttp3.MultipartBody.FORM, descriptionString);
+    }
+
+    @NonNull
+    private MultipartBody.Part prepareFilePart(String partName, Uri fileUri) {
+        // https://github.com/iPaulPro/aFileChooser/blob/master/aFileChooser/src/com/ipaulpro/afilechooser/utils/FileUtils.java
+        // use the FileUtils to get the actual file by uri
+        File file;
+        if(partName.equals("phonecsv")) {
+            file = csvOutput;
+        }
+        else {
+            file = watchOutputFile;
+        }
+
+        // create RequestBody instance from file
+        RequestBody requestFile =
+                RequestBody.create(
+                        MediaType.parse(getContentResolver().getType(fileUri)),
+                        file
+                );
+
+        // MultipartBody.Part is used to send also the actual file name
+        return MultipartBody.Part.createFormData(partName, file.getName(), requestFile);
     }
 }
