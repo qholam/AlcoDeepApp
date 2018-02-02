@@ -10,7 +10,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 public class ServiceGenerator {
 
-    private static final String BASE_URL = "https://intoxigait.herokuapp.com/";
+    private static final String BASE_URL = "https://intoxigait.herokuapp.com/classify/";
 
     private static Retrofit.Builder builder =
             new Retrofit.Builder()
@@ -18,9 +18,6 @@ public class ServiceGenerator {
                     .addConverterFactory(GsonConverterFactory.create());
 
     private static Retrofit retrofit = builder.build();
-
-    private static OkHttpClient.Builder httpClient =
-            new OkHttpClient.Builder();
 
     public static <S> S createService(
             Class<S> serviceClass) {

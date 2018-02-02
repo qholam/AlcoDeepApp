@@ -11,6 +11,7 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.net.Uri;
+import android.os.CountDownTimer;
 import android.os.Environment;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -36,6 +37,8 @@ import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+
+import javax.xml.transform.URIResolver;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
@@ -77,6 +80,8 @@ public class MainMenuActivity extends AppCompatActivity implements
     private File watchOutputFile;
     ArrayList<Attribute> attributes;
     Instances mDataset;
+
+    CountDownTimer cTimer = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -186,28 +191,54 @@ public class MainMenuActivity extends AppCompatActivity implements
         mDataset = new Instances("mqp_features", attributes, 10000);
         mDataset.setClassIndex(mDataset.numAttributes() - 1);
 
-        //start service to listen to messages from the watch
+        //service to listen to messages from the watch
         serviceIntent = new Intent(this, MobileListenerService.class);
-        startService(serviceIntent);
 
-        //start main activity on watch
-        startWatch();
+        //1,2,3.... timer to give user time to put phone in pocket
+        cTimer = new CountDownTimer(4000, 1000) {
+            public void onTick(long millisUntilFinished) {
+                //update status to reflect time left on countdown
+                TextView status = (TextView) findViewById(R.id.status);
+                status.setText("Recording in " + millisUntilFinished/1000 + "...");
+            }
+            public void onFinish() {
+                //start main activity on watch
+                startWatch();
 
-        //open file for writing phone data to
-        csvOutput = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), System.currentTimeMillis() + "phone.csv");
-        try {
-            writer = new FileWriter(csvOutput.getAbsolutePath(),true);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+                //open file for writing phone data to
+                csvOutput = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), System.currentTimeMillis() + "phone.csv");
+                try {
+                    writer = new FileWriter(csvOutput.getAbsolutePath(),true);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
 
-        //update status
-        TextView status = (TextView) findViewById(R.id.status);
-        status.setText("Recording...");
-        serviceStarted = true;
+                //start service to listen to watch data
+                startService(serviceIntent);
+
+                //update status
+                TextView status = (TextView) findViewById(R.id.status);
+                status.setText("Recording...");
+                serviceStarted = true;
+
+                CountDownTimer timer = new CountDownTimer(5000, 1000) {
+                    public void onTick(long millisUntilFinished) {
+                    }
+                    public void onFinish() {
+                        stopApp();
+                    }
+                };
+                timer.start();
+            }
+        };
+        cTimer.start();
     }
 
     public void pressStopButton(View v) {
+        stopApp();
+    }
+
+    public void stopApp() {
         //disable stop button and enable start button
         disableStopButton();
         enableStartButton();
@@ -230,9 +261,10 @@ public class MainMenuActivity extends AppCompatActivity implements
         //send phone and watch csv's to server
         sendFilesToServer();
 
+        //todo button to go to results page
         //go to result activity
         Intent intent = new Intent(this, ResultActivity.class);
-        startActivity(intent);
+        //startActivity(intent);
     }
 
     private void enableStartButton() {
@@ -268,27 +300,22 @@ public class MainMenuActivity extends AppCompatActivity implements
     }
 
     private void sendFilesToServer() {
-        Uri file1Uri = Uri.parse(csvOutput.getAbsolutePath()); // get uri to phone csv
-        Uri file2Uri = Uri.parse(watchOutputFile.getAbsolutePath()); // get uri to watch csv
-
         // create upload service client
         FileUploadService service =
                 ServiceGenerator.createService(FileUploadService.class);
 
         // create part for file
-        MultipartBody.Part body1 = prepareFilePart("phonecsv", file1Uri);
-        MultipartBody.Part body2 = prepareFilePart("watchcsv", file2Uri);
-
-        // add another part within the multipart request
-        RequestBody description = createPartFromString("contains watch and phone csv files");
+        MultipartBody.Part body1 = prepareFilePart("phone");
+        MultipartBody.Part body2 = prepareFilePart("watch");
 
         // finally, execute the request
-        Call<ResponseBody> call = service.uploadMultipleFiles(description, body1, body2);
+        Call<ResponseBody> call = service.uploadMultipleFiles(body1, body2);
         call.enqueue(new Callback<ResponseBody>() {
             @Override
             public void onResponse(Call<ResponseBody> call,
                                    Response<ResponseBody> response) {
-                Log.v("Upload", "success");
+                Log.wtf("Upload", "success");
+                //we get back a json and a color
             }
 
             @Override
@@ -296,21 +323,12 @@ public class MainMenuActivity extends AppCompatActivity implements
                 Log.e("Upload error:", t.getMessage());
             }
         });
-    } 
-
-
-    @NonNull
-    private RequestBody createPartFromString(String descriptionString) {
-        return RequestBody.create(
-                okhttp3.MultipartBody.FORM, descriptionString);
     }
 
     @NonNull
-    private MultipartBody.Part prepareFilePart(String partName, Uri fileUri) {
-        // https://github.com/iPaulPro/aFileChooser/blob/master/aFileChooser/src/com/ipaulpro/afilechooser/utils/FileUtils.java
-        // use the FileUtils to get the actual file by uri
+    private MultipartBody.Part prepareFilePart(String partName) {
         File file;
-        if(partName.equals("phonecsv")) {
+        if(partName.equals("phone")) {
             file = csvOutput;
         }
         else {
@@ -318,11 +336,8 @@ public class MainMenuActivity extends AppCompatActivity implements
         }
 
         // create RequestBody instance from file
-        RequestBody requestFile =
-                RequestBody.create(
-                        MediaType.parse(getContentResolver().getType(fileUri)),
-                        file
-                );
+        okhttp3.MediaType csv = MediaType.parse("text/csv");
+        RequestBody requestFile = RequestBody.create(csv, file);
 
         // MultipartBody.Part is used to send also the actual file name
         return MultipartBody.Part.createFormData(partName, file.getName(), requestFile);
