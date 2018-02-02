@@ -98,10 +98,6 @@ public class MainMenuActivity extends AppCompatActivity implements
                     hasPermission);
         }
 
-        //start service to listen to messages from the watch
-        serviceIntent = new Intent(this, MobileListenerService.class);
-        startService(serviceIntent);
-
         //create an Instance which will hold all the data from the watch
         attributes = new ArrayList<>();
         attributes.add(new Attribute("dt"));
@@ -180,6 +176,10 @@ public class MainMenuActivity extends AppCompatActivity implements
         mDataset = new Instances("mqp_features", attributes, 10000);
         mDataset.setClassIndex(mDataset.numAttributes() - 1);
 
+        //start service to listen to messages from the watch
+        serviceIntent = new Intent(this, MobileListenerService.class);
+        startService(serviceIntent);
+
         //start main activity on watch
         startWatch();
 
@@ -201,6 +201,10 @@ public class MainMenuActivity extends AppCompatActivity implements
         //disable stop button and enable start button
         disableStopButton();
         enableStartButton();
+
+        //stop service to listen to messages from the watch
+        serviceIntent = new Intent(this, MobileListenerService.class);
+        stopService(serviceIntent);
 
         //update status
         TextView status = (TextView) findViewById(R.id.status);
@@ -380,9 +384,6 @@ public class MainMenuActivity extends AppCompatActivity implements
                 float[] wgx = data.getFloatArray("wgx");
                 float[] wgy = data.getFloatArray("wgy");
                 float[] wgz = data.getFloatArray("wgz");
-
-
-                //todo how are we saving watch data
 
                 if (serviceStarted) {
                     if (attributes == null) {
