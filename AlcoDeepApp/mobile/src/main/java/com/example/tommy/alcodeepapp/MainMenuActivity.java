@@ -252,7 +252,7 @@ public class MainMenuActivity extends AppCompatActivity implements
         saveWatchToFile();
 
         //send phone and watch csv's to server
-        //sendFilesToServer();
+        sendFilesToServer();
 
         //todo button to go to results page
         //Change button to take user to results page
