@@ -126,7 +126,6 @@ public class MainMenuActivity extends AppCompatActivity implements
         mDataset = new Instances("mqp_features", attributes, 10000);
         mDataset.setClassIndex(mDataset.numAttributes() - 1);
 
-        disableStopButton();
         serviceStarted = false;
     }
 
@@ -184,7 +183,6 @@ public class MainMenuActivity extends AppCompatActivity implements
     public void pressStartButton(View v) {
         //disable start button and enable stop button
         disableStartButton();
-        enableStopButton();
 
         //make sure Instance holding watch data is initially empty
         mDataset.delete();
@@ -234,13 +232,8 @@ public class MainMenuActivity extends AppCompatActivity implements
         cTimer.start();
     }
 
-    public void pressStopButton(View v) {
-        stopApp();
-    }
-
     public void stopApp() {
         //disable stop button and enable start button
-        disableStopButton();
         enableStartButton();
 
         //stop service to listen to messages from the watch
@@ -249,7 +242,7 @@ public class MainMenuActivity extends AppCompatActivity implements
 
         //update status
         TextView status = (TextView) findViewById(R.id.status);
-        status.setText("Stopped...");
+        status.setText("Done recording");
         serviceStarted = false;
 
         //stop main activity on watch
@@ -259,12 +252,19 @@ public class MainMenuActivity extends AppCompatActivity implements
         saveWatchToFile();
 
         //send phone and watch csv's to server
-        sendFilesToServer();
+        //sendFilesToServer();
 
         //todo button to go to results page
-        //go to result activity
-        Intent intent = new Intent(this, ResultActivity.class);
-        //startActivity(intent);
+        //Change button to take user to results page
+        Button btn = (Button) findViewById(R.id.startButton);
+        btn.setText("Get Results");
+        final Intent intent = new Intent(this, ResultActivity.class);
+        btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(intent);
+            }
+        });
     }
 
     private void enableStartButton() {
@@ -272,18 +272,8 @@ public class MainMenuActivity extends AppCompatActivity implements
         btn.setEnabled(true);
     }
 
-    private void enableStopButton() {
-        Button btn = (Button) findViewById(R.id.stopButton);
-        btn.setEnabled(true);
-    }
-
     private void disableStartButton() {
         Button btn = (Button) findViewById(R.id.startButton);
-        btn.setEnabled(false);
-    }
-
-    private void disableStopButton() {
-        Button btn = (Button) findViewById(R.id.stopButton);
         btn.setEnabled(false);
     }
 
