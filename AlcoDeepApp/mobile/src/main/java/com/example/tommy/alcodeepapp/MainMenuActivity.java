@@ -29,8 +29,10 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.wearable.CapabilityApi;
 import com.google.android.gms.wearable.Wearable;
+import com.google.gson.JsonObject;
 
 import org.apache.commons.io.FileUtils;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -97,6 +99,9 @@ public class MainMenuActivity extends AppCompatActivity implements
         IntentFilter messageFilter = new IntentFilter(Intent.ACTION_SEND);
         MessageReceiver messageReceiver = new MessageReceiver();
         LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, messageFilter);
+
+        //service to listen to messages from the watch
+        serviceIntent = new Intent(this, MobileListenerService.class);
 
         //Build a new GoogleApiClient
         mGoogleApiClient = new GoogleApiClient.Builder(this)
@@ -189,9 +194,6 @@ public class MainMenuActivity extends AppCompatActivity implements
         mDataset = new Instances("mqp_features", attributes, 10000);
         mDataset.setClassIndex(mDataset.numAttributes() - 1);
 
-        //service to listen to messages from the watch
-        serviceIntent = new Intent(this, MobileListenerService.class);
-
         //1,2,3.... timer to give user time to put phone in pocket
         cTimer = new CountDownTimer(4000, 1000) {
             public void onTick(long millisUntilFinished) {
@@ -219,7 +221,7 @@ public class MainMenuActivity extends AppCompatActivity implements
                 status.setText("Recording...");
                 serviceStarted = true;
 
-                CountDownTimer timer = new CountDownTimer(5000, 1000) {
+                CountDownTimer timer = new CountDownTimer(10000, 1000) {
                     public void onTick(long millisUntilFinished) {
                     }
                     public void onFinish() {
@@ -233,16 +235,13 @@ public class MainMenuActivity extends AppCompatActivity implements
     }
 
     public void stopApp() {
-        //disable stop button and enable start button
-        enableStartButton();
-
         //stop service to listen to messages from the watch
         serviceIntent = new Intent(this, MobileListenerService.class);
         stopService(serviceIntent);
 
         //update status
         TextView status = (TextView) findViewById(R.id.status);
-        status.setText("Done recording");
+        status.setText("Receiving from data from server...");
         serviceStarted = false;
 
         //stop main activity on watch
@@ -253,23 +252,6 @@ public class MainMenuActivity extends AppCompatActivity implements
 
         //send phone and watch csv's to server
         sendFilesToServer();
-
-        //todo button to go to results page
-        //Change button to take user to results page
-        Button btn = (Button) findViewById(R.id.startButton);
-        btn.setText("Get Results");
-        final Intent intent = new Intent(this, ResultActivity.class);
-        btn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startActivity(intent);
-            }
-        });
-    }
-
-    private void enableStartButton() {
-        Button btn = (Button) findViewById(R.id.startButton);
-        btn.setEnabled(true);
     }
 
     private void disableStartButton() {
@@ -290,6 +272,8 @@ public class MainMenuActivity extends AppCompatActivity implements
     }
 
     private void sendFilesToServer() {
+        final Intent intent = new Intent(this, ResultActivity.class);
+
         // create upload service client
         FileUploadService service =
                 ServiceGenerator.createService(FileUploadService.class);
@@ -305,7 +289,31 @@ public class MainMenuActivity extends AppCompatActivity implements
             public void onResponse(Call<ResponseBody> call,
                                    Response<ResponseBody> response) {
                 Log.wtf("Upload", "success");
-                //we get back a json and a color
+                //we get back a json. color of goggles. just one result res
+                try {
+                    String bodyString = new String(response.body().bytes());
+
+                    Log.wtf("Upload", bodyString);
+
+                    //Change button to take user to results page
+                    //update status
+                    TextView status = (TextView) findViewById(R.id.status);
+                    status.setText("Done");
+
+                    intent.putExtra("bodystring", bodyString);
+                    Button btn = (Button) findViewById(R.id.startButton);
+                    btn.setText("Get Results");
+                    btn.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            startActivity(intent);
+                        }
+                    });
+                    btn.setEnabled(true);
+                }
+                catch (Exception e) {
+                    Log.wtf("Error", e);
+                }
             }
 
             @Override
@@ -369,7 +377,7 @@ public class MainMenuActivity extends AppCompatActivity implements
                     float may = sensorEvent.values[1];
                     float maz = sensorEvent.values[2];
                     long t = sensorEvent.timestamp;
-                    writer.write("acc,"+t+','+max+','+may+','+maz+','+'\n');
+                    writer.write("acc,"+t+','+max+','+may+','+maz+'\n');
 
                     Log.wtf("PhoneAccel", max + " " + may + " " + maz);
                 } catch (IOException e) {
@@ -382,7 +390,7 @@ public class MainMenuActivity extends AppCompatActivity implements
                     float mgy = sensorEvent.values[1];
                     float mgz = sensorEvent.values[2];
                     long t = sensorEvent.timestamp;
-                    writer.write("gyr,"+t+','+mgx+','+mgy+','+mgz+','+'\n');
+                    writer.write("gyr,"+t+','+mgx+','+mgy+','+mgz+'\n');
 
 
                     Log.wtf("PhoneGyro", mgx + " " + mgy + " " + mgz);

@@ -4,11 +4,15 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
+import android.widget.TextView;
 
 import com.jjoe64.graphview.GraphView;
 import com.jjoe64.graphview.series.DataPoint;
 import com.jjoe64.graphview.series.LineGraphSeries;
+
+import org.json.JSONObject;
 
 public class ResultActivity extends AppCompatActivity {
 
@@ -17,32 +21,19 @@ public class ResultActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_result);
 
-        GraphView graph = (GraphView) findViewById(R.id.graph);
-        LineGraphSeries<DataPoint> series = new LineGraphSeries<DataPoint>(new DataPoint[] {
-                new DataPoint(0, 1),
-                new DataPoint(1, -5),
-                new DataPoint(2, 3),
-                new DataPoint(3, -2),
-                new DataPoint(5, 6),
-                new DataPoint(7, 1),
-                new DataPoint(10, -5),
-        });
+        String bodyString = getIntent().getStringExtra("bodystring");
 
-        LineGraphSeries<DataPoint> series2 = new LineGraphSeries<DataPoint>(new DataPoint[] {
-                new DataPoint(10, -5),
-                new DataPoint(12, 3),
-                new DataPoint(16, -2),
-                new DataPoint(20, 6),
-                new DataPoint(22, 1),
-                new DataPoint(25, -5),
-                new DataPoint(26, 3),
-                new DataPoint(30, -2),
-                new DataPoint(32, 6)
-        });
+        try {
+            JSONObject jsonObject = new JSONObject(bodyString);
 
-        series.setColor(Color.GREEN);
-        graph.addSeries(series);
-        graph.addSeries(series2);
+            Log.wtf("Upload", jsonObject.get("result").toString());
+
+            TextView result = (TextView) findViewById(R.id.result);
+            result.setText(jsonObject.getString("result"));
+    }
+        catch (Exception e) {
+
+        }
     }
 
     public void pressDoneButton(View v) {

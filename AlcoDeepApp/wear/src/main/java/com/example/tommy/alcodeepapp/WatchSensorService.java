@@ -40,7 +40,6 @@ public class WatchSensorService extends Service implements SensorEventListener {
     private static ArrayBlockingQueue<Float> mAccBufferY;
     private static ArrayBlockingQueue<Float> mAccBufferZ;
 
-
     private static ArrayBlockingQueue<Float> mGyroBufferX;
     private static ArrayBlockingQueue<Float> mGyroBufferY;
     private static ArrayBlockingQueue<Float> mGyroBufferZ;
@@ -48,8 +47,6 @@ public class WatchSensorService extends Service implements SensorEventListener {
     @Override
     public void onCreate() {
         super.onCreate();
-
-
 
         Log.wtf("MQP", "Sensor Service Started");
 

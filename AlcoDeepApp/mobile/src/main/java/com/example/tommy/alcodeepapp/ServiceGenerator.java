@@ -10,7 +10,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 public class ServiceGenerator {
 
-    private static final String BASE_URL = "https://intoxigait.herokuapp.com/classify/";
+    private static final String BASE_URL = "http://alcogait.wpi.edu/classify/";
 
     private static Retrofit.Builder builder =
             new Retrofit.Builder()

@@ -9,6 +9,7 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.os.Bundle;
+import android.os.Vibrator;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.LocalBroadcastManager;
@@ -111,19 +112,10 @@ public class MainActivity extends WearableActivity implements
     }
 
     private void updateDisplay() {
-        if (isAmbient()) {
-            mContainerView.setBackgroundColor(Color.BLACK);
-            mLogoView.setTextColor(Color.WHITE);
-            mStatusView.setTextColor(Color.WHITE);
-            mClockView.setVisibility(View.VISIBLE);
-
-            mClockView.setText(AMBIENT_DATE_FORMAT.format(new Date()));
-        } else {
-            mContainerView.setBackground(null);
-            mLogoView.setTextColor(Color.BLACK);
-            mStatusView.setTextColor(Color.BLACK);
-            mClockView.setVisibility(View.GONE);
-        }
+        mContainerView.setBackground(null);
+        mLogoView.setTextColor(Color.BLACK);
+        mStatusView.setTextColor(Color.BLACK);
+        mClockView.setVisibility(View.GONE);
     }
 
     @Override
@@ -155,6 +147,11 @@ public class MainActivity extends WearableActivity implements
                 case "stop":
                     mStatusView.setText("Idle...");
                     stopService(new Intent(this, WatchSensorService.class));
+                    Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+                    long[] vibrationPattern = {0, 500, 50, 300};
+                    //-1 - don't repeat
+                    final int indexInPatternToRepeat = -1;
+                    vibrator.vibrate(vibrationPattern, indexInPatternToRepeat);
                     break;
                 default:
                     break;
