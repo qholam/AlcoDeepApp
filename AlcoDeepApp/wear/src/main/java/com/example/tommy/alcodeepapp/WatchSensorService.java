@@ -13,8 +13,6 @@ import android.util.Log;
 
 import com.google.android.gms.wearable.DataMap;
 
-import java.text.DecimalFormat;
-import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 
 

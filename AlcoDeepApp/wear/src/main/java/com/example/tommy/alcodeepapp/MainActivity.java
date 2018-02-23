@@ -38,9 +38,6 @@ public class MainActivity extends WearableActivity implements
         GoogleApiClient.OnConnectionFailedListener,
         MessageApi.MessageListener{
 
-    private static final SimpleDateFormat AMBIENT_DATE_FORMAT =
-            new SimpleDateFormat("HH:mm", Locale.US);
-
     private BoxInsetLayout mContainerView;
     private TextView mLogoView;
     private TextView mStatusView;
@@ -48,7 +45,6 @@ public class MainActivity extends WearableActivity implements
 
     private GoogleApiClient mGoogleApiClient;
 
-    private String DATA_RECEIVER_CAPABILITY = "data_receiver";
     private String DATA_RECEIVER_PATH = "/data_receiver";
 
     @Override
@@ -76,6 +72,8 @@ public class MainActivity extends WearableActivity implements
 
         //set up listener for MessageApi
         Wearable.MessageApi.addListener(mGoogleApiClient, this);
+
+        startService(new Intent(this, WatchSensorService.class));
     }
 
     @Override
@@ -142,11 +140,11 @@ public class MainActivity extends WearableActivity implements
             switch(data) {
                 case "start":
                     mStatusView.setText("Recording...");
-                    startService(new Intent(this, WatchSensorService.class));
+                    //startService(new Intent(this, WatchSensorService.class));
                     break;
                 case "stop":
                     mStatusView.setText("Idle...");
-                    stopService(new Intent(this, WatchSensorService.class));
+                    //stopService(new Intent(this, WatchSensorService.class));
                     Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
                     long[] vibrationPattern = {0, 500, 50, 300};
                     //-1 - don't repeat

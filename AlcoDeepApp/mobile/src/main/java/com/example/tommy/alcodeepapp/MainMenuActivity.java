@@ -64,10 +64,10 @@ public class MainMenuActivity extends AppCompatActivity implements
 
     int hasPermission = 0;
 
+    private boolean connected = false;
 
     /*variables for use when using MessageAPI*/
     private GoogleApiClient mGoogleApiClient;
-    private String DATA_RECEIVER_CAPABILITY = "data_receiver";
     private String DATA_RECEIVER_PATH = "/data_receiver";
 
     /*variables for sensors*/
@@ -132,6 +132,9 @@ public class MainMenuActivity extends AppCompatActivity implements
         mDataset.setClassIndex(mDataset.numAttributes() - 1);
 
         serviceStarted = false;
+
+        //disabled until we connected to watch
+        disableStartButton();
     }
 
     @Override
@@ -198,8 +201,7 @@ public class MainMenuActivity extends AppCompatActivity implements
         cTimer = new CountDownTimer(4000, 1000) {
             public void onTick(long millisUntilFinished) {
                 //update status to reflect time left on countdown
-                TextView status = (TextView) findViewById(R.id.status);
-                status.setText("Recording in " + millisUntilFinished/1000 + "...");
+                updateStatusMessage("Recording in " + millisUntilFinished/1000 + "...");
             }
             public void onFinish() {
                 //start main activity on watch
@@ -217,8 +219,7 @@ public class MainMenuActivity extends AppCompatActivity implements
                 startService(serviceIntent);
 
                 //update status
-                TextView status = (TextView) findViewById(R.id.status);
-                status.setText("Recording...");
+                updateStatusMessage("Recording...");
                 serviceStarted = true;
 
                 CountDownTimer timer = new CountDownTimer(10000, 1000) {
@@ -240,8 +241,7 @@ public class MainMenuActivity extends AppCompatActivity implements
         stopService(serviceIntent);
 
         //update status
-        TextView status = (TextView) findViewById(R.id.status);
-        status.setText("Receiving from data from server...");
+        updateStatusMessage("Receiving from data from server...");
         serviceStarted = false;
 
         //stop main activity on watch
@@ -254,9 +254,19 @@ public class MainMenuActivity extends AppCompatActivity implements
         sendFilesToServer();
     }
 
+    private void enableStartButton() {
+        Button btn = (Button) findViewById(R.id.startButton);
+        btn.setEnabled(true);
+    }
+
     private void disableStartButton() {
         Button btn = (Button) findViewById(R.id.startButton);
         btn.setEnabled(false);
+    }
+
+    private void updateStatusMessage(String msg) {
+        TextView status = (TextView) findViewById(R.id.status);
+        status.setText(msg);
     }
 
     private void startWatch() {
@@ -297,8 +307,7 @@ public class MainMenuActivity extends AppCompatActivity implements
 
                     //Change button to take user to results page
                     //update status
-                    TextView status = (TextView) findViewById(R.id.status);
-                    status.setText("Done");
+                    updateStatusMessage("Done");
 
                     intent.putExtra("bodystring", bodyString);
                     Button btn = (Button) findViewById(R.id.startButton);
@@ -456,23 +465,28 @@ public class MainMenuActivity extends AppCompatActivity implements
     }
 
     public class MessageReceiver extends BroadcastReceiver {
-        @Override
+        public CountDownTimer cdt = null;
+
         public void onReceive(Context context, Intent intent) {
             Bundle data = intent.getBundleExtra("datamap");
-            if (data.getString("type").equals("status")) {
-                //
-            } else if (data.getString("type").equals("data")) {
+            if (data.getString("type").equals("data")) {
+                if(!connected) {
+                    enableStartButton();
+                    updateStatusMessage("Connected to Watch");
+                }
 
-                // Log the data
-                long[] dt = data.getLongArray("dt");
-                float[] wax = data.getFloatArray("wax");
-                float[] way = data.getFloatArray("way");
-                float[] waz = data.getFloatArray("waz");
-                float[] wgx = data.getFloatArray("wgx");
-                float[] wgy = data.getFloatArray("wgy");
-                float[] wgz = data.getFloatArray("wgz");
+                connected = true;
 
                 if (serviceStarted) {
+                    // Log the data
+                    long[] dt = data.getLongArray("dt");
+                    float[] wax = data.getFloatArray("wax");
+                    float[] way = data.getFloatArray("way");
+                    float[] waz = data.getFloatArray("waz");
+                    float[] wgx = data.getFloatArray("wgx");
+                    float[] wgy = data.getFloatArray("wgy");
+                    float[] wgz = data.getFloatArray("wgz");
+
                     if (attributes == null) {
                         Log.wtf("MQP", "attributes null");
                         return;
@@ -492,6 +506,17 @@ public class MainMenuActivity extends AppCompatActivity implements
                         mDataset.add(inst);
                     }
                 }
+
+                //if we don't receive data from watch in past 3 seconds then we are disconnected
+                if(cdt!=null) cdt.cancel();
+                cdt = new CountDownTimer(3000, 3000) {
+                    public void onTick(long millisUntilFinished) { }
+                    public void onFinish() {
+                        connected = false;
+                        updateStatusMessage("Disconnected from Watch");
+                        disableStartButton();
+                    }
+                }.start();
             }
         }
     }
